@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Swipe My Style</title>
+<style>
+  :root {
+    --bg: #fff6f8;
+    --ink: #2b2230;
+    --muted: #8a7d90;
+    --pink: #ff6f91;
+    --pass: #8a8f98;
+    --card: #ffffff;
+    --radius: 24px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    background: radial-gradient(circle at 20% 0%, #ffe1ea 0, transparent 50%),
+                radial-gradient(circle at 100% 100%, #e8e1ff 0, transparent 50%), var(--bg);
+    background-attachment: fixed;
+    color: var(--ink);
+    overflow-x: hidden;
+  }
+  .screen { display: none; min-height: 100%; max-width: 440px; margin: 0 auto; padding: 24px 16px 32px; flex-direction: column; }
+  .screen.active { display: flex; }
+  h1 { font-size: 40px; margin: 0 0 12px; letter-spacing: -1px; }
+  h2 { font-size: 26px; margin: 0 0 8px; }
+  p { line-height: 1.6; }
+  .muted { color: var(--muted); }
+  .center { text-align: center; }
+  .btn {
+    border: 0; border-radius: 999px; padding: 16px 28px; font-size: 17px; font-weight: 700;
+    background: var(--ink); color: #fff; cursor: pointer; transition: transform .15s;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn.pink { background: linear-gradient(135deg, #ff8fab, #ff6f91); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  /* 單品圖示：主 emoji + 右下角小 emoji */
+  .art { display: flex; align-items: center; justify-content: center; }
+  .art .main { position: relative; font-size: 120px; line-height: 1; }
+  .art .accent { position: absolute; right: -.3em; bottom: -.1em; font-size: .4em;
+    background: #fff; border-radius: 50%; width: 1.5em; height: 1.5em;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,.12); }
+
+  /* Welcome */
+  #start { justify-content: center; text-align: center; }
+  .hero-emoji { font-size: 72px; margin-bottom: 8px; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-10px) rotate(-4deg); } }
+
+  /* Swipe */
+  .topbar { display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+  .progress { height: 6px; background: #f1e6ea; border-radius: 99px; margin: 10px 0 18px; overflow: hidden; }
+  .progress > div { height: 100%; background: linear-gradient(90deg, #ff8fab, #b18cff); width: 0; transition: width .3s; }
+  .deck { position: relative; height: 470px; margin-bottom: 20px; }
+  .card {
+    position: absolute; inset: 0; border-radius: var(--radius); background: var(--card); overflow: hidden;
+    box-shadow: 0 12px 32px rgba(60, 20, 50, .14); display: flex; flex-direction: column;
+    user-select: none; touch-action: none; will-change: transform; cursor: grab;
+  }
+  .card.dragging { cursor: grabbing; }
+  .card.behind { transform: scale(.94) translateY(16px); filter: brightness(.97); cursor: default; }
+  .card .art { flex: 1; }
+  .card .info { padding: 16px 20px 18px; }
+  .card .name { font-size: 22px; font-weight: 800; }
+  .card .vibe { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .stamp {
+    position: absolute; top: 24px; padding: 6px 14px; border: 4px solid; border-radius: 12px; z-index: 2;
+    font-size: 28px; font-weight: 900; opacity: 0; pointer-events: none; background: rgba(255,255,255,.75);
+  }
+  .stamp.like { left: 20px; color: var(--pink); border-color: var(--pink); transform: rotate(-14deg); }
+  .stamp.pass { right: 20px; color: var(--pass); border-color: var(--pass); transform: rotate(14deg); }
+  .actions { display: flex; justify-content: center; gap: 40px; }
+  .round {
+    width: 72px; height: 72px; border-radius: 50%; border: 0; font-size: 30px; cursor: pointer;
+    background: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.1); transition: transform .15s;
+  }
+  .round:active { transform: scale(.9); }
+  .hint { text-align: center; font-size: 13px; margin-top: 14px; }
+
+  /* Final Battle */
+  #battle { text-align: center; }
+  .round-tag { display: inline-block; background: var(--ink); color: #fff; font-weight: 800; letter-spacing: 2px;
+    font-size: 13px; padding: 6px 14px; border-radius: 99px; margin-bottom: 10px; }
+  .versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 24px 0; }
+  .fighter { background: #fff; border-radius: 20px; overflow: hidden; cursor: pointer; border: 3px solid transparent;
+    box-shadow: 0 8px 22px rgba(60,20,50,.12); transition: transform .25s, opacity .25s, border-color .25s; }
+  .fighter:hover { transform: translateY(-3px); }
+  .fighter .art { height: 170px; }
+  .fighter .art .main { font-size: 72px; }
+  .fighter .n { font-weight: 800; padding: 10px 6px 12px; font-size: 15px; }
+  .fighter.win { border-color: var(--pink); transform: scale(1.06); }
+  .fighter.lose { opacity: .25; transform: scale(.92); }
+  .vs-badge { font-size: 22px; font-weight: 900; color: var(--pink); }
+
+  /* Guess */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+  .choice {
+    background: var(--card); border: 2px solid transparent; border-radius: 18px; padding: 16px 12px;
+    text-align: center; cursor: pointer; font-size: 15px; font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0,0,0,.06); transition: all .15s;
+  }
+  .choice .e { font-size: 32px; display: block; margin-bottom: 4px; }
+  .choice.sel { border-color: var(--pink); transform: translateY(-2px); background: #fff0f4; }
+
+  /* Analyzing */
+  #analyzing { justify-content: center; text-align: center; }
+  .scan { font-size: 64px; animation: spin 1.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: 3px; font-weight: 800; margin: 20px 0 8px; }
+
+  /* Result */
+  #result { text-align: center; }
+  .step { display: none; animation: rise .6s ease both; margin-bottom: 28px; }
+  .step.show { display: block; }
+  @keyframes rise { from { opacity: 0; transform: translateY(20px); } }
+  .panel { background: #fff; border-radius: var(--radius); padding: 18px 20px; margin: 16px 0;
+    box-shadow: 0 10px 28px rgba(60,20,50,.1); text-align: left; }
+  .panel h3 { margin: 0 0 10px; font-size: 15px; color: var(--muted); font-weight: 700; }
+  .bar { margin-bottom: 12px; }
+  .bar .label { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; }
+  .bar .track { height: 12px; background: #f3eaee; border-radius: 99px; overflow: hidden; }
+  .bar .fill { height: 100%; width: 0; border-radius: 99px; transition: width 1.2s cubic-bezier(.2,.8,.2,1); }
+  .crown .title { font-size: 30px; font-weight: 900; margin: 4px 0;
+    background: linear-gradient(90deg, #ff6f91, #9b6bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { background: #fff0f4; color: #d94a72; border-radius: 99px; padding: 6px 12px; font-weight: 700; font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed #eadde3; }
+  .row:last-child { border-bottom: 0; }
+  .row .thumb { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; }
+  .row .thumb .main { font-size: 30px; }
+  .row .t { font-weight: 700; }
+  .row .s { font-size: 12px; color: var(--muted); }
+  .row .rate { margin-left: auto; font-weight: 800; color: var(--pink); }
+  .vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 20px 0; }
+  .vs .box { background: #fff; border-radius: 18px; padding: 16px 8px; box-shadow: 0 6px 18px rgba(0,0,0,.07); }
+  .vs .box .e { font-size: 40px; }
+  .vs .box .n { font-weight: 800; margin-top: 4px; }
+  .vs .box .p { color: var(--muted); font-size: 14px; }
+  .verdict { font-size: 20px; font-weight: 800; margin: 10px 0 20px; }
+  .confetti { position: fixed; top: -20px; font-size: 22px; pointer-events: none; animation: fall linear forwards; z-index: 10; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+</style>
+</head>
+<body>
+
+<!-- STEP 1 — Welcome -->
+<section id="start" class="screen active">
+  <div class="hero-emoji">👗</div>
+  <h1>Swipe My Style</h1>
+  <p class="muted" id="introText"></p>
+  <p class="muted" style="font-size:14px">👉 右滑 = 喜歡 ｜ 👈 左滑 = 跳過</p>
+  <div style="margin-top:24px"><button class="btn pink" onclick="startSwipe()">START</button></div>
+</section>
+
+<!-- STEP 2 — Swipe -->
+<section id="swipe" class="screen">
+  <div class="topbar"><span id="catLabel"></span><span class="muted" id="counter"></span></div>
+  <div class="progress"><div id="bar"></div></div>
+  <div class="deck" id="deck"></div>
+  <div class="actions">
+    <button class="round" onclick="fly(-1)" aria-label="Pass">❌</button>
+    <button class="round" onclick="fly(1)" aria-label="Like">❤️</button>
+  </div>
+  <p class="hint muted">可以拖曳卡片、手指滑動，或用鍵盤 ← →</p>
+</section>
+
+<!-- STEP 3 — Guess（滑完才猜，避免影響選擇） -->
+<section id="guess" class="screen">
+  <h2>等等，先別看答案 👀</h2>
+  <p class="muted" style="margin:0">看完剛才的選擇，你覺得自己最接近哪種？</p>
+  <div class="grid" id="guessGrid"></div>
+  <button class="btn" id="guessGo" onclick="afterGuess()" disabled>就是這個 →</button>
+</section>
+
+<!-- STEP 4 — Final Battle -->
+<section id="battle" class="screen">
+  <div><span class="round-tag" id="roundTag">FINAL ROUND</span></div>
+  <h2>只能留一個，你選誰？</h2>
+  <div class="versus" id="versus"></div>
+  <p class="muted" style="font-size:13px">點選你要留下的那一件</p>
+</section>
+
+<!-- STEP 5 — Analyzing -->
+<section id="analyzing" class="screen">
+  <div class="scan">🔍</div>
+  <div class="mono">ANALYZING YOUR STYLE...</div>
+  <div class="progress"><div id="scanBar"></div></div>
+  <p class="muted" id="scanText"></p>
+</section>
+
+<!-- STEP 6 — Your Style -->
+<section id="result" class="screen">
+  <div class="step" id="step1">
+    <h2>✨ Your Fashion DNA</h2>
+    <div class="panel" id="bars"></div>
+    <div class="panel crown center">
+      <div class="muted">👑 你的 Style</div>
+      <div class="title" id="mainTitle"></div>
+      <p id="mainDesc" style="margin:0"></p>
+    </div>
+    <div class="panel">
+      <h3>🏷️ 你的穿搭關鍵字</h3>
+      <div class="tags" id="keywords"></div>
+    </div>
+    <div class="panel">
+      <h3>❤️ 你最常 Like 的單品類型</h3>
+      <div id="favCats"></div>
+    </div>
+    <button class="btn pink" onclick="showStep(2)">看看我的 Outfit →</button>
+  </div>
+
+  <div class="step" id="step2">
+    <h2>👗 Your Outfit</h2>
+    <p class="muted" style="margin:0" id="outfitWhy"></p>
+    <div class="panel" id="outfit"></div>
+    <button class="btn pink" onclick="showStep(3)">Expectation vs Reality 👀</button>
+  </div>
+
+  <div class="step" id="step3">
+    <h2>👀 Expectation vs Reality</h2>
+    <div class="vs" id="vs"></div>
+    <div class="verdict" id="verdict"></div>
+    <button class="btn" onclick="restart()">↻ 再測一次</button>
+  </div>
+</section>
+
+<script>
+// ---------- 風格定義（只在程式內部計分，滑卡時不會顯示） ----------
+const STYLES = {
+  minimal: { name: 'Minimal',    short: 'Minimal', emoji: '🤍', color: '#9aa0a6',
+             desc: '你喜歡線條俐落、顏色單純的單品，少即是多。', keywords: ['簡約', '低飽和', '俐落剪裁', '黑白灰'] },
+  korean:  { name: 'Korean',     short: 'Korean',  emoji: '🇰🇷', color: '#7fb3ff',
+             desc: '你偏好溫柔、有層次的韓系設計感。', keywords: ['溫柔', '層次感', '奶茶色', '寬鬆比例'] },
+  clean:   { name: 'Clean Girl', short: 'Clean',   emoji: '🫧', color: '#f2b38c',
+             desc: '你偏好乾淨、清透、看起來毫不費力的精緻感。', keywords: ['乾淨', '清透', '毫不費力', '低調精緻'] },
+  y2k:     { name: 'Y2K',        short: 'Y2K',     emoji: '💿', color: '#c77dff',
+             desc: '你被閃亮、復古、千禧年的玩心吸引。', keywords: ['閃亮', '千禧復古', '玩心', '辣妹感'] },
+  street:  { name: 'Street',     short: 'Street',  emoji: '🛹', color: '#4d4d4d',
+             desc: '你喜歡寬鬆、帥氣、有態度的街頭感。', keywords: ['帥氣', '機能', 'Oversized', '休閒'] },
+  girly:   { name: 'Girly',      short: 'Girly',   emoji: '🎀', color: '#ff6f91',
+             desc: '你喜歡蝴蝶結、碎花與甜美的少女感。', keywords: ['甜美', '蝴蝶結', '粉嫩', '浪漫'] },
+};
+
+// ---------- 分類 ----------
+const CATS = {
+  top:    { label: '👚 上衣', bg: '#ffe4ec' },
+  bottom: { label: '👖 下身', bg: '#e3efff' },
+  dress:  { label: '👗 洋裝', bg: '#f1e6ff' },
+  shoes:  { label: '👟 鞋子', bg: '#e6f7ef' },
+  bag:    { label: '👜 包包', bg: '#fff3dc' },
+  makeup: { label: '💄 妝容', bg: '#ffe9e3' },
+};
+
+// ---------- 單品卡片 ----------
+// emoji：單品種類；accent：右下角的小圖示，用來區分同種類的單品
+// score：每件單品都是「主風格 +2、次風格 +1」，6 種風格的總分都是 14 分，結果才不會偏向某一種。
+const ITEMS = [
+  { cat: 'top', emoji: '👚', accent: '🤍', name: '白色短版上衣',      vibe: '基本款但很耐看',     score: { clean: 2, minimal: 1 } },
+  { cat: 'top', emoji: '🧥', accent: '', name: 'Oversized 西裝外套', vibe: '肩線垮垮的那種',     score: { minimal: 2, korean: 1 } },
+  { cat: 'top', emoji: '🧶', accent: '🎀', name: '蝴蝶結針織開衫',    vibe: '軟綿綿的粉嫩色',     score: { korean: 2, girly: 1 } },
+  { cat: 'top', emoji: '🎽', accent: '✨', name: '亮片小可愛',        vibe: '派對感拉滿',         score: { y2k: 2, girly: 1 } },
+  { cat: 'top', emoji: '👕', accent: '🧢', name: 'Oversized 帽 T',    vibe: '大 Logo、寬鬆版型',   score: { street: 2, y2k: 1 } },
+  { cat: 'top', emoji: '👚', accent: '🌸', name: '方領泡泡袖上衣',    vibe: '露出鎖骨的法式浪漫', score: { girly: 2, korean: 1 } },
+
+  { cat: 'bottom', emoji: '👖', accent: '', name: '高腰寬褲',   vibe: '顯腿長的秘密武器', score: { minimal: 2, street: 1 } },
+  { cat: 'bottom', emoji: '👗', accent: '🩵', name: '牛仔長裙',  vibe: '隨性又有氣質',     score: { korean: 2, clean: 1 } },
+  { cat: 'bottom', emoji: '👖', accent: '🦋', name: '低腰喇叭褲', vibe: '千禧年辣妹必備',   score: { y2k: 2, street: 1 } },
+  { cat: 'bottom', emoji: '👖', accent: '🪖', name: '工裝褲',     vibe: '口袋超多',         score: { street: 2, minimal: 1 } },
+  { cat: 'bottom', emoji: '👗', accent: '🎀', name: '百褶短裙',   vibe: '走路會飄起來',     score: { girly: 2, y2k: 1 } },
+
+  { cat: 'dress', emoji: '👗', accent: '🥂', name: '緞面吊帶裙',     vibe: '有光澤的低調性感', score: { clean: 2, y2k: 1 } },
+  { cat: 'dress', emoji: '👗', accent: '🌼', name: '碎花洋裝',       vibe: '野餐約會首選',     score: { girly: 2, korean: 1 } },
+  { cat: 'dress', emoji: '👗', accent: '🖤', name: '黑色針織長洋裝', vibe: '一件就很完整',     score: { minimal: 2, clean: 1 } },
+
+  { cat: 'shoes', emoji: '👟', accent: '', name: 'Samba',       vibe: '最近滿街都是',   score: { clean: 2, street: 1 } },
+  { cat: 'shoes', emoji: '🥿', accent: '', name: 'Mary Jane',   vibe: '圓頭 + 一字帶',  score: { girly: 2, korean: 1 } },
+  { cat: 'shoes', emoji: '🥾', accent: '', name: '厚底老爹鞋',  vibe: '增高 5 公分',    score: { street: 2, y2k: 1 } },
+  { cat: 'shoes', emoji: '👡', accent: '', name: '尖頭穆勒鞋',  vibe: '輕鬆套上就出門', score: { minimal: 2, clean: 1 } },
+
+  { cat: 'bag', emoji: '👜', accent: '🖤', name: '黑色肩背包',   vibe: '什麼都裝得下', score: { minimal: 2, clean: 1 } },
+  { cat: 'bag', emoji: '👝', accent: '', name: '尼龍斜背包',   vibe: '機能感十足',   score: { street: 2, minimal: 1 } },
+  { cat: 'bag', emoji: '👛', accent: '🧸', name: '毛絨腋下包',   vibe: '可愛到犯規',   score: { y2k: 2, girly: 1 } },
+  { cat: 'bag', emoji: '🛍️', accent: '', name: '帆布托特包',   vibe: '文青日常款',   score: { korean: 2, street: 1 } },
+  { cat: 'bag', emoji: '👛', accent: '🎀', name: '蝴蝶結小提包', vibe: '只裝得下口紅', score: { girly: 2, y2k: 1 } },
+
+  { cat: 'makeup', emoji: '💄', accent: '🤎', name: '裸色妝容',     vibe: '看起來像沒化妝', score: { clean: 2, minimal: 1 } },
+  { cat: 'makeup', emoji: '💧', accent: '✨', name: '水光韓妝',     vibe: '皮膚會發光',     score: { korean: 2, clean: 1 } },
+  { cat: 'makeup', emoji: '👁️', accent: '🪩', name: '亮片閃亮眼妝', vibe: '眼皮上有星星',   score: { y2k: 2, girly: 1 } },
+  { cat: 'makeup', emoji: '👁️', accent: '🌫️', name: '煙燻眼妝',     vibe: '酷到不想說話',   score: { street: 2, y2k: 1 } },
+  { cat: 'makeup', emoji: '😊', accent: '🍑', name: '蘋果肌腮紅',   vibe: '剛跑完步的紅暈', score: { korean: 2, clean: 1 } },
+];
+
+const BATTLE_ROUNDS = 4;       // 決賽 PK 次數
+const BATTLE_BONUS = 0.5;      // 決賽勝出的單品，風格分數再加 50%
+
+document.getElementById('introText').innerHTML =
+  `${ITEMS.length} 個選擇，看看你的穿搭直覺藏著什麼風格。<br>不用想太久，第一眼決定就好。`;
+
+// ---------- 狀態 ----------
+let idx = 0, liked = [], winners = [], battles = [], battleIdx = 0, guess = null, busy = false;
+
+function go(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  window.scrollTo(0, 0);
+}
+
+function artHTML(item, cls = '') {
+  return `<div class="art ${cls}" style="background:${CATS[item.cat].bg}">
+    <span class="main">${item.emoji}${item.accent ? `<span class="accent">${item.accent}</span>` : ''}</span>
+  </div>`;
+}
+
+// ---------- STEP 2：滑卡 ----------
+const deck = document.getElementById('deck');
+
+function startSwipe() {
+  idx = 0; liked = []; winners = []; guess = null;
+  go('swipe');
+  renderDeck();
+}
+
+function cardHTML(item) {
+  return `
+    <div class="stamp like">LIKE</div>
+    <div class="stamp pass">PASS</div>
+    ${artHTML(item)}
+    <div class="info"><div class="name">${item.name}</div><div class="vibe">${item.vibe}</div></div>`;
+}
+
+function renderDeck() {
+  deck.innerHTML = '';
+  if (idx >= ITEMS.length) return finishSwipe();
+  if (idx + 1 < ITEMS.length) {
+    const back = document.createElement('div');
+    back.className = 'card behind';
+    back.innerHTML = cardHTML(ITEMS[idx + 1]);
+    deck.appendChild(back);
+  }
+  const top = document.createElement('div');
+  top.className = 'card';
+  top.innerHTML = cardHTML(ITEMS[idx]);
+  deck.appendChild(top);
+  attachDrag(top);
+
+  document.getElementById('catLabel').textContent = CATS[ITEMS[idx].cat].label;
+  document.getElementById('counter').textContent = `${idx + 1} / ${ITEMS.length}`;
+  document.getElementById('bar').style.width = `${(idx / ITEMS.length) * 100}%`;
+}
+
+function setStamps(card, dx) {
+  const o = Math.min(Math.abs(dx) / 100, 1);
+  card.querySelector('.like').style.opacity = dx > 0 ? o : 0;
+  card.querySelector('.pass').style.opacity = dx < 0 ? o : 0;
+}
+
+function attachDrag(card) {
+  let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
+
+  card.addEventListener('pointerdown', e => {
+    if (busy) return;
+    dragging = true; startX = e.clientX; startY = e.clientY; dx = dy = 0;
+    card.setPointerCapture(e.pointerId);
+    card.style.transition = 'none';
+    card.classList.add('dragging');
+  });
+  card.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    dx = e.clientX - startX; dy = e.clientY - startY;
+    card.style.transform = `translate(${dx}px, ${dy * 0.3}px) rotate(${dx * 0.06}deg)`;
+    setStamps(card, dx);
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    if (Math.abs(dx) > 100) {
+      fly(Math.sign(dx), dy);
+    } else {
+      card.style.transition = 'transform .35s cubic-bezier(.2,1.4,.4,1)';
+      card.style.transform = '';
+      setStamps(card, 0);
+    }
+  };
+  card.addEventListener('pointerup', end);
+  card.addEventListener('pointercancel', end);
+}
+
+function fly(dir, dy = 0) {
+  if (busy || idx >= ITEMS.length) return;
+  busy = true;
+  const card = deck.querySelector('.card:not(.behind)');
+  setStamps(card, dir * 100);
+  card.style.transition = 'transform .4s ease-out, opacity .4s';
+  card.style.transform = `translate(${dir * window.innerWidth}px, ${dy * 0.3 - 40}px) rotate(${dir * 30}deg)`;
+  card.style.opacity = 0;
+
+  const behind = deck.querySelector('.card.behind');
+  if (behind) { behind.style.transition = 'transform .3s'; behind.style.transform = 'none'; }
+
+  if (dir > 0) liked.push(ITEMS[idx]);
+  setTimeout(() => { idx++; busy = false; renderDeck(); }, 380);
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('swipe').classList.contains('active')) return;
+  if (e.key === 'ArrowRight') fly(1);
+  if (e.key === 'ArrowLeft') fly(-1);
+});
+
+function finishSwipe() {
+  document.getElementById('bar').style.width = '100%';
+  guessGrid.querySelectorAll('.choice').forEach(c => c.classList.remove('sel'));
+  document.getElementById('guessGo').disabled = true;
+  go('guess');
+}
+
+// ---------- STEP 3：猜風格 ----------
+const guessGrid = document.getElementById('guessGrid');
+Object.entries(STYLES).forEach(([key, s]) => {
+  const el = document.createElement('div');
+  el.className = 'choice';
+  el.innerHTML = `<span class="e">${s.emoji}</span>${s.name}`;
+  el.onclick = () => {
+    guess = key;
+    guessGrid.querySelectorAll('.choice').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+    document.getElementById('guessGo').disabled = false;
+  };
+  guessGrid.appendChild(el);
+});
+
+function afterGuess() {
+  battles = makeBattles();
+  battleIdx = 0;
+  if (battles.length) { go('battle'); renderBattle(); }
+  else analyze();
+}
+
+// ---------- STEP 4：Final Battle ----------
+const primaryOf = item => Object.entries(item.score).sort((a, b) => b[1] - a[1])[0][0];
+
+function makeBattles() {
+  // 優先同分類、不同風格的兩件 Like 單品互相 PK；不夠再跨分類補
+  const pool = [...liked].sort(() => Math.random() - .5);
+  const used = new Set(), result = [];
+  const tryPair = sameCat => {
+    for (const a of pool) for (const b of pool) {
+      if (result.length >= BATTLE_ROUNDS) return;
+      if (a === b || used.has(a) || used.has(b)) continue;
+      if (sameCat && a.cat !== b.cat) continue;
+      if (primaryOf(a) === primaryOf(b)) continue;
+      result.push([a, b]); used.add(a); used.add(b);
+    }
+  };
+  tryPair(true);
+  tryPair(false);
+  return result;
+}
+
+function renderBattle() {
+  const [a, b] = battles[battleIdx];
+  document.getElementById('roundTag').textContent = `FINAL ROUND ${battleIdx + 1} / ${battles.length}`;
+  const versus = document.getElementById('versus');
+  versus.innerHTML = `
+    <div class="fighter" data-i="0">${artHTML(a)}<div class="n">${a.name}</div></div>
+    <div class="vs-badge">VS</div>
+    <div class="fighter" data-i="1">${artHTML(b)}<div class="n">${b.name}</div></div>`;
+  versus.querySelectorAll('.fighter').forEach(f => f.onclick = () => {
+    if (busy) return;
+    busy = true;
+    const win = +f.dataset.i;
+    winners.push(battles[battleIdx][win]);
+    versus.querySelectorAll('.fighter').forEach(x => x.classList.add(+x.dataset.i === win ? 'win' : 'lose'));
+    setTimeout(() => {
+      busy = false;
+      battleIdx++;
+      battleIdx < battles.length ? renderBattle() : analyze();
+    }, 700);
+  });
+}
+
+// ---------- STEP 5：分析動畫 ----------
+function analyze() {
+  go('analyzing');
+  const lines = ['讀取你的 ❤️ 紀錄…', '比對 6 種風格基因…', '計算決賽加權…', '幫你搭一套 Outfit…'];
+  const bar = document.getElementById('scanBar'), text = document.getElementById('scanText');
+  bar.style.transition = 'none'; bar.style.width = '0';
+  requestAnimationFrame(() => { bar.style.transition = 'width 2.6s linear'; bar.style.width = '100%'; });
+  lines.forEach((l, i) => setTimeout(() => text.textContent = l, i * 650));
+  setTimeout(showResult, 2800);
+}
+
+// ---------- 計分 ----------
+function computeScores() {
+  const total = Object.fromEntries(Object.keys(STYLES).map(k => [k, 0]));
+  liked.forEach(it => Object.entries(it.score).forEach(([k, v]) => total[k] += v));
+  winners.forEach(it => Object.entries(it.score).forEach(([k, v]) => total[k] += v * BATTLE_BONUS));
+  const sum = Object.values(total).reduce((a, b) => a + b, 0);
+
+  // 四捨五入後讓總和剛好 100%
+  const rows = Object.entries(total).map(([k, v]) => ({ key: k, raw: sum ? v / sum * 100 : 0 }));
+  rows.forEach(r => r.pct = Math.floor(r.raw));
+  const left = (sum ? 100 : 0) - rows.reduce((a, r) => a + r.pct, 0);
+  [...rows].sort((a, b) => (b.raw - b.pct) - (a.raw - a.pct)).slice(0, left).forEach(r => r.pct++);
+  return rows.sort((a, b) => b.raw - a.raw);
+}
+
+// ---------- Outfit：用「搭配分數」挑最合理的一套 ----------
+function pickOutfit(rows) {
+  const weight = Object.fromEntries(rows.map(r => [r.key, r.raw / 100]));
+  const fit = item => Object.entries(item.score).reduce((a, [k, v]) => a + v * weight[k], 0)
+                      + (winners.includes(item) ? 1 : 0);  // 決賽留下來的優先
+  // 兩件單品共享風格越多越好搭
+  const compat = (a, b) => Object.keys(a.score).filter(k => b.score[k]).length;
+
+  const options = cat => {
+    const l = liked.filter(i => i.cat === cat);
+    return l.length ? l.map(item => ({ item, rec: false }))
+                    : [{ item: [...ITEMS.filter(i => i.cat === cat)].sort((a, b) => fit(b) - fit(a))[0], rec: true }];
+  };
+  const bodies = [];
+  options('top').forEach(t => options('bottom').forEach(b => bodies.push([t, b])));
+  liked.filter(i => i.cat === 'dress').forEach(d => bodies.push([{ item: d, rec: false }]));
+
+  let best = null, bestScore = -Infinity;
+  for (const body of bodies) for (const s of options('shoes')) for (const g of options('bag')) for (const m of options('makeup')) {
+    const set = [...body, s, g, m];
+    let score = set.reduce((a, x) => a + fit(x.item) - (x.rec ? 1 : 0), 0) / set.length;
+    for (let i = 0; i < set.length; i++) for (let j = i + 1; j < set.length; j++) score += compat(set[i].item, set[j].item) * 0.15;
+    if (score > bestScore) { bestScore = score; best = set; }
+  }
+  return best;
+}
+
+// ---------- STEP 6：結果 ----------
+function showResult() {
+  const rows = computeScores();
+  const [first, second] = rows;
+  const m = STYLES[first.key], s2 = STYLES[second.key];
+  const medals = ['🥇', '🥈', '🥉'];
+
+  // Fashion DNA
+  document.getElementById('bars').innerHTML = liked.length ? rows.map((r, i) => `
+    <div class="bar">
+      <div class="label"><span>${medals[i] || '　'} ${STYLES[r.key].name}</span><span class="num" data-v="${r.pct}">0%</span></div>
+      <div class="track"><div class="fill" style="background:${STYLES[r.key].color}" data-w="${r.pct}"></div></div>
+    </div>`).join('') : '<p class="muted">你一件都沒有喜歡… 是個很挑剔的人 😂</p>';
+
+  // 主風格 + 次風格（一件都沒 Like 就是神秘人）
+  const none = !liked.length;
+  const combo = second.pct >= 20;
+  document.getElementById('mainTitle').textContent = none ? '神秘人 🕵️' : combo ? `${m.short} ${s2.short}` : m.name;
+  document.getElementById('mainDesc').textContent = none
+    ? '這 28 件你一件都看不上，眼光高到系統分析不出來。'
+    : combo ? `${m.desc.replace(/。$/, '')}，但又會選一些帶有 ${s2.name} 感的元素。` : m.desc;
+
+  // 穿搭關鍵字：主風格 3 個 + 次風格 2 個
+  const kw = none ? ['挑剔', '神秘', '眼光很高'] : [...m.keywords.slice(0, 3), ...s2.keywords.slice(0, combo ? 2 : 1)];
+  document.getElementById('keywords').innerHTML = kw.map(k => `<span class="tag">${k}</span>`).join('');
+
+  // 最常 Like 的單品類型
+  const catRows = Object.entries(CATS).map(([key, c]) => {
+    const all = ITEMS.filter(i => i.cat === key), l = liked.filter(i => i.cat === key);
+    return { c, l, rate: l.length / all.length, total: all.length };
+  }).filter(r => r.l.length).sort((a, b) => b.rate - a.rate).slice(0, 4);
+  document.getElementById('favCats').innerHTML = catRows.map(r => `
+    <div class="row"><div><div class="t">${r.c.label}</div><div class="s">${r.l.map(i => i.name).join('、')}</div></div>
+    <div class="rate">${r.l.length}/${r.total}</div></div>`).join('') || '<p class="muted">還沒有喜歡的單品</p>';
+
+  // Outfit
+  document.getElementById('outfitWhy').textContent = none
+    ? '你沒有 Like 任何單品，這套是我們推薦你試試的'
+    : combo
+    ? `以 ${m.name} 為主、${s2.name} 點綴，從你 ❤️ 的單品裡算出最搭的一套`
+    : `以 ${m.name} 為主，從你 ❤️ 的單品裡算出最搭的一套`;
+  document.getElementById('outfit').innerHTML = pickOutfit(rows).map(({ item, rec }) => `
+    <div class="row">${artHTML(item, 'thumb')}
+      <div><div class="t">${item.name}</div>
+      <div class="s">${CATS[item.cat].label} · ${rec ? '💡 推薦你試試' : winners.includes(item) ? '🏆 決賽勝出' : '❤️ 你選的'}</div></div>
+    </div>`).join('');
+
+  // Expectation vs Reality
+  const g = rows.find(r => r.key === guess), G = STYLES[guess];
+  document.getElementById('vs').innerHTML = `
+    <div class="box"><div class="muted" style="font-size:13px">你以為</div><div class="e">${G.emoji}</div><div class="n">${G.name}</div><div class="p">實際 ${g.pct}%</div></div>
+    <div style="font-size:24px;font-weight:900">VS</div>
+    <div class="box"><div class="muted" style="font-size:13px">其實是</div><div class="e">${none ? '🕵️' : m.emoji}</div><div class="n">${none ? '神秘人' : m.name}</div><div class="p">${none ? '???' : first.pct + '%'}</div></div>`;
+  const rank = rows.indexOf(g) + 1;
+  document.getElementById('verdict').textContent =
+    none ? '🤔 一件都不喜歡，連自己都猜不到吧' :
+    guess === first.key ? '🎯 被你猜中了！你很了解自己' :
+    rank === 2 ? '😌 差一點點！你的直覺排第二' :
+    g.pct === 0 ? `😂 完全被打臉，你選的單品裡 0% ${G.name}` :
+    '😂 嘴巴說不要，手指很誠實';
+
+  go('result');
+  ['step1', 'step2', 'step3'].forEach((id, i) => document.getElementById(id).classList.toggle('show', i === 0));
+  document.querySelectorAll('#step1 > .btn, #step2 > .btn').forEach(b => b.style.display = '');
+  setTimeout(animateBars, 200);
+  confetti();
+}
+
+function animateBars() {
+  document.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%');
+  document.querySelectorAll('.num').forEach(n => {
+    const target = +n.dataset.v, t0 = performance.now();
+    const tick = t => {
+      const p = Math.min((t - t0) / 1200, 1);
+      n.textContent = Math.round(target * (1 - Math.pow(1 - p, 3))) + '%';
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+function showStep(n) {
+  document.querySelector(`#step${n - 1} > .btn`).style.display = 'none';
+  const el = document.getElementById('step' + n);
+  el.classList.add('show');
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (n === 3) confetti();
+}
+
+function confetti() {
+  const pieces = ['✨', '💖', '🎀', '⭐', '💫'];
+  for (let i = 0; i < 30; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.textContent = pieces[i % pieces.length];
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.animationDuration = 2 + Math.random() * 2 + 's';
+    c.style.animationDelay = Math.random() * .6 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 5000);
+  }
+}
+
+function restart() { go('start'); }
+</script>
+</body>
+</html>
